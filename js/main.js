@@ -17,23 +17,29 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('#app').innerHTML = '<p style="color:red">Error loading troop data.</p>';
         });
 
-    document.getElementById('process-btn').addEventListener('click', processSourceCode);
+    const processBtn = document.getElementById('process-btn');
+    if (processBtn) {
+        processBtn.addEventListener('click', processSourceCode);
+    }
     
-    document.getElementById('target-url').addEventListener('input', (e) => {
-        const url = e.target.value;
-        const xMatch = url.match(/[?&]x=(-?\d+)/);
-        const yMatch = url.match(/[?&]y=(-?\d+)/);
-        
-        if (xMatch && yMatch) {
-            targetCoordinates.x = parseInt(xMatch[1]);
-            targetCoordinates.y = parseInt(yMatch[1]);
-            recalculateAllTimes();
-        } else {
-            targetCoordinates.x = null;
-            targetCoordinates.y = null;
-            recalculateAllTimes();
-        }
-    });
+    const targetUrlInput = document.getElementById('target-url');
+    if (targetUrlInput) {
+        targetUrlInput.addEventListener('input', (e) => {
+            const url = e.target.value;
+            const xMatch = url.match(/[?&]x=(-?\d+)/);
+            const yMatch = url.match(/[?&]y=(-?\d+)/);
+            
+            if (xMatch && yMatch) {
+                targetCoordinates.x = parseInt(xMatch[1]);
+                targetCoordinates.y = parseInt(yMatch[1]);
+                recalculateAllTimes();
+            } else {
+                targetCoordinates.x = null;
+                targetCoordinates.y = null;
+                recalculateAllTimes();
+            }
+        });
+    }
 });
 
 function processSourceCode() {
@@ -320,7 +326,7 @@ function calculateTime(villageData) {
     } else {
         // Tournament Square Logic
         const tsLevel = villageData.tsLevel || 0;
-        const tsMultiplier = 1 + (tsLevel * 0.1); // e.g., Lvl 20 -> 1 + 2.0 = 3x
+        const tsMultiplier = 1 + (tsLevel * 0.2); // 20% per level
         
         // First 20 fields at normal (enhanced) speed
         const timeFirst20 = 20 / enhancedSpeed;
