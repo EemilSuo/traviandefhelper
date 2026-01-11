@@ -327,7 +327,7 @@ function updateLinkHref(linkElement, rowData) {
         return;
     }
 
-    linkElement.style.pointerEvents = auto;
+    linkElement.style.pointerEvents = 'auto';
     linkElement.style.color = '';
 
     // Params: newdid (switch village), gid=16 (rally point), tt=2 (send troops)
