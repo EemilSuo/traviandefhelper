@@ -327,15 +327,16 @@ function updateLinkHref(linkElement, rowData) {
         return;
     }
 
-    linkElement.style.pointerEvents = 'auto';
+    linkElement.style.pointerEvents = auto;
     linkElement.style.color = '';
 
     // Params: newdid (switch village), gid=16 (rally point), tt=2 (send troops)
+    // eventType=4 (Raid)
     // x, y = target
-    // t1...t10 = troop counts
-    // t11 = hero?
+    // targetMapId = calculated map position
     
-    let params = `?newdid=${rowData.villageDid}&gid=16&tt=2&x=${targetCoordinates.x}&y=${targetCoordinates.y}`;
+    const targetMapId = (200 - targetCoordinates.y) * 401 + (201 + targetCoordinates.x);
+    let params = `?newdid=${rowData.villageDid}&gid=16&tt=2&eventType=4&targetMapId=${targetMapId}&x=${targetCoordinates.x}&y=${targetCoordinates.y}`;
     
     rowData.units.forEach((unit, idx) => {
         // unit.sendAmount
