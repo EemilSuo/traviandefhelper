@@ -1,6 +1,7 @@
 let troopData = [];
-let currentResults = []; // Store processed results globally to re-render or recalc
-let tribeUnits = []; // Store current tribe's unit info
+let currentResults = [];
+let tribeUnits = [];
+let targetCoordinates = { x: null, y: null }; // Store target coordinates here
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Travian Def Helper initialized');
@@ -18,19 +19,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('process-btn').addEventListener('click', processSourceCode);
     
-    // Add event listeners for target coordinates to recalculate times live
-    document.getElementById('target-x').addEventListener('input', recalculateAllTimes);
-    document.getElementById('target-y').addEventListener('input', recalculateAllTimes);
-
-    // Add event listener for target URL
     document.getElementById('target-url').addEventListener('input', (e) => {
         const url = e.target.value;
         const xMatch = url.match(/[?&]x=(-?\d+)/);
         const yMatch = url.match(/[?&]y=(-?\d+)/);
         
         if (xMatch && yMatch) {
-            document.getElementById('target-x').value = xMatch[1];
-            document.getElementById('target-y').value = yMatch[1];
+            targetCoordinates.x = parseInt(xMatch[1]);
+            targetCoordinates.y = parseInt(yMatch[1]);
+            recalculateAllTimes();
+        } else {
+            targetCoordinates.x = null;
+            targetCoordinates.y = null;
             recalculateAllTimes();
         }
     });
@@ -72,7 +72,6 @@ function processSourceCode() {
         const link = villageNameCell.querySelector('a');
         const villageName = villageNameCell.innerText.trim();
         
-        // Extract village DID from href to find coordinates
         let villageDid = null;
         if (link) {
             const href = link.getAttribute('href');
@@ -80,7 +79,6 @@ function processSourceCode() {
             if (match) villageDid = match[1];
         }
 
-        // Find coordinates in the sidebar using DID
         let x = 0, y = 0;
         if (villageDid) {
             const sidebarEntry = doc.querySelector(`.listEntry.village[data-did="${villageDid}"]`);
@@ -88,7 +86,6 @@ function processSourceCode() {
                 const coordX = sidebarEntry.querySelector('.coordinateX');
                 const coordY = sidebarEntry.querySelector('.coordinateY');
                 if (coordX && coordY) {
-                    // Clean text: replace minus sign (U+2212) with hyphen, then remove all non-digits/non-hyphen
                     const cleanX = coordX.innerText.replace(/\u2212/g, '-').replace(/[^\d-]/g, '');
                     const cleanY = coordY.innerText.replace(/\u2212/g, '-').replace(/[^\d-]/g, '');
                     x = parseInt(cleanX) || 0;
@@ -100,27 +97,26 @@ function processSourceCode() {
         const units = [];
         const cells = row.querySelectorAll('td');
 
-        // Cells 1-10 are regular units
         for (let i = 1; i <= 10; i++) {
             if (cells[i]) {
                 const count = parseInt(cells[i].innerText.replace(/[^\d]/g, '')) || 0;
-                // Store unit data even if count is 0, to align columns, but mark availability
                 units.push({
                     ...tribeUnits[i-1],
                     count: count,
-                    selected: count > 0 // Default select if troops exist
+                    selected: count > 0,
+                    sendAmount: count // Default to max
                 });
             }
         }
         
-        // Handle Hero (Column 11)
         if (cells[11]) {
             const heroCount = parseInt(cells[11].innerText.replace(/[^\d]/g, '')) || 0;
             units.push({
                 name: "Hero",
-                speed: 7, // Default base speed for Hero
+                speed: 7, 
                 count: heroCount,
-                selected: heroCount > 0
+                selected: heroCount > 0,
+                sendAmount: heroCount
             });
         }
 
@@ -129,7 +125,9 @@ function processSourceCode() {
             villageDid,
             x,
             y,
-            units
+            units,
+            tsLevel: 0, // Tournament Square Level (0-20)
+            artefactSpeed: 1 // Artefact Multiplier (1x, 1.5x, 2x, etc.)
         });
     });
 
@@ -149,14 +147,11 @@ function displayResults() {
     const table = document.createElement('table');
     const thead = document.createElement('thead');
     
-    // Create Header Row
-    let headerHtml = '<tr><th>Village</th><th>Coords</th>';
+    let headerHtml = '<tr><th>Village</th><th>Coords</th><th>TS Level</th><th>Artefact</th>';
     tribeUnits.forEach(unit => {
-        // Use image or name. Name is safer for text.
         headerHtml += `<th title="${unit.name} (Speed: ${unit.speed})">${unit.name.substring(0, 3)}</th>`;
     });
-    headerHtml += '<th title="Hero (Speed: 7)">Her</th>'; // Hero Header
-    headerHtml += '<th>Time</th></tr>';
+    headerHtml += '<th title="Hero (Speed: 7)">Her</th><th>Time</th></tr>';
     
     thead.innerHTML = headerHtml;
     table.appendChild(thead);
@@ -168,32 +163,97 @@ function displayResults() {
         row.classList.add('village-row');
         
         // Village & Coords
-        row.innerHTML = `
-            <td>${res.villageName}</td>
-            <td>(${res.x}|${res.y})</td>
-        `;
+        const infoCell = document.createElement('td');
+        infoCell.innerText = res.villageName;
+        row.appendChild(infoCell);
+
+        const coordsCell = document.createElement('td');
+        coordsCell.innerText = `(${res.x}|${res.y})`;
+        row.appendChild(coordsCell);
+
+        // TS Level Input
+        const tsCell = document.createElement('td');
+        const tsInput = document.createElement('input');
+        tsInput.type = 'number';
+        tsInput.min = 0;
+        tsInput.max = 20;
+        tsInput.value = res.tsLevel;
+        tsInput.style.width = '40px';
+        tsInput.addEventListener('input', (e) => {
+            let val = parseInt(e.target.value) || 0;
+            if (val > 20) val = 20;
+            if (val < 0) val = 0;
+            e.target.value = val;
+            currentResults[rowIdx].tsLevel = val;
+            updateRowTime(row, currentResults[rowIdx]);
+        });
+        tsCell.appendChild(tsInput);
+        row.appendChild(tsCell);
+
+        // Artefact Select
+        const artCell = document.createElement('td');
+        const artSelect = document.createElement('select');
+        [1, 1.5, 2, 3].forEach(mult => {
+            const opt = document.createElement('option');
+            opt.value = mult;
+            opt.innerText = mult === 1 ? 'None' : `${mult}x`;
+            artSelect.appendChild(opt);
+        });
+        artSelect.value = res.artefactSpeed;
+        artSelect.addEventListener('change', (e) => {
+            currentResults[rowIdx].artefactSpeed = parseFloat(e.target.value);
+            updateRowTime(row, currentResults[rowIdx]);
+        });
+        artCell.appendChild(artSelect);
+        row.appendChild(artCell);
 
         // Unit Columns
         res.units.forEach((unit, unitIdx) => {
             const cell = document.createElement('td');
             if (unit.count > 0) {
+                const container = document.createElement('div');
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.alignItems = 'center';
+
                 // Checkbox
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.checked = unit.selected;
-                checkbox.dataset.row = rowIdx;
-                checkbox.dataset.unit = unitIdx;
                 checkbox.addEventListener('change', (e) => {
                     currentResults[rowIdx].units[unitIdx].selected = e.target.checked;
                     updateRowTime(row, currentResults[rowIdx]);
                 });
                 
-                // Label (Count)
-                const label = document.createElement('span');
-                label.innerText = ` ${unit.count}`;
-                
-                cell.appendChild(checkbox);
-                cell.appendChild(label);
+                // Amount Input
+                const numberInput = document.createElement('input');
+                numberInput.type = 'number';
+                numberInput.min = 0;
+                numberInput.max = unit.count;
+                numberInput.value = unit.sendAmount;
+                numberInput.style.width = '50px';
+                numberInput.addEventListener('input', (e) => {
+                    let val = parseInt(e.target.value) || 0;
+                    if (val > unit.count) val = unit.count;
+                    if (val < 0) val = 0;
+                    e.target.value = val;
+                    currentResults[rowIdx].units[unitIdx].sendAmount = val;
+                    
+                    // Auto-select checkbox if amount > 0, deselect if 0
+                    if (val > 0 && !checkbox.checked) {
+                        checkbox.checked = true;
+                        currentResults[rowIdx].units[unitIdx].selected = true;
+                    } else if (val === 0 && checkbox.checked) {
+                        checkbox.checked = false;
+                        currentResults[rowIdx].units[unitIdx].selected = false;
+                    }
+                    updateRowTime(row, currentResults[rowIdx]);
+                });
+
+                container.appendChild(checkbox);
+                container.appendChild(numberInput);
+                container.appendChild(document.createTextNode(` / ${unit.count}`)); // Show max
+                cell.appendChild(container);
             } else {
                 cell.innerText = '-';
                 cell.classList.add('none');
@@ -231,29 +291,45 @@ function recalculateAllTimes() {
 }
 
 function calculateTime(villageData) {
-    const targetX = parseInt(document.getElementById('target-x').value);
-    const targetY = parseInt(document.getElementById('target-y').value);
-
-    if (isNaN(targetX) || isNaN(targetY)) {
-        return 'Enter Target';
+    if (targetCoordinates.x === null || targetCoordinates.y === null) {
+        return 'Enter URL';
     }
 
-    const selectedUnits = villageData.units.filter(u => u.selected && u.count > 0);
+    // Filter units that are selected AND have a send amount > 0
+    const selectedUnits = villageData.units.filter(u => u.selected && u.sendAmount > 0);
     
     if (selectedUnits.length === 0) {
         return '-';
     }
 
-    // Find slowest speed
+    // Find slowest base speed
     const minSpeed = Math.min(...selectedUnits.map(u => u.speed));
     
+    // Apply Artefact Multiplier
+    const enhancedSpeed = minSpeed * villageData.artefactSpeed;
+
     // Calculate Distance
-    const dx = Math.abs(villageData.x - targetX);
-    const dy = Math.abs(villageData.y - targetY);
+    const dx = Math.abs(villageData.x - targetCoordinates.x);
+    const dy = Math.abs(villageData.y - targetCoordinates.y);
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Calculate Time in Hours
-    const timeHours = distance / minSpeed;
+    // Calculate Time
+    let timeHours = 0;
+    if (distance <= 20) {
+        timeHours = distance / enhancedSpeed;
+    } else {
+        // Tournament Square Logic
+        const tsLevel = villageData.tsLevel || 0;
+        const tsMultiplier = 1 + (tsLevel * 0.1); // e.g., Lvl 20 -> 1 + 2.0 = 3x
+        
+        // First 20 fields at normal (enhanced) speed
+        const timeFirst20 = 20 / enhancedSpeed;
+        
+        // Remaining distance at TS speed
+        const timeRest = (distance - 20) / (enhancedSpeed * tsMultiplier);
+        
+        timeHours = timeFirst20 + timeRest;
+    }
     
     return formatTime(timeHours);
 }
