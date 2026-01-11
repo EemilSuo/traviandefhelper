@@ -113,13 +113,16 @@ function processSourceCode() {
             }
         }
         
-        // Hero is usually cell 11 (index 11 in querySelectorAll result if 0-based is villageName)
-        // Check header to be sure or just assume 11th cell
-        // Hero speed depends on equipment, base is usually 7. Let's assume standard hero for now or use Tribe base speed? 
-        // For now, let's ignore Hero for speed calculation or assume a default like unit speed. 
-        // Providing a Hero column but defaulting speed to "fastest" or user input is complex.
-        // Let's stick to the 10 units for now as per "add every troop as its own column".
-        // If the user wants hero support, we can add it later.
+        // Handle Hero (Column 11)
+        if (cells[11]) {
+            const heroCount = parseInt(cells[11].innerText.replace(/[^\d]/g, '')) || 0;
+            units.push({
+                name: "Hero",
+                speed: 7, // Default base speed for Hero
+                count: heroCount,
+                selected: heroCount > 0
+            });
+        }
 
         results.push({
             villageName,
@@ -152,6 +155,7 @@ function displayResults() {
         // Use image or name. Name is safer for text.
         headerHtml += `<th title="${unit.name} (Speed: ${unit.speed})">${unit.name.substring(0, 3)}</th>`;
     });
+    headerHtml += '<th title="Hero (Speed: 7)">Her</th>'; // Hero Header
     headerHtml += '<th>Time</th></tr>';
     
     thead.innerHTML = headerHtml;
