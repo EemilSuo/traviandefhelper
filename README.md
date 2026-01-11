@@ -18,14 +18,7 @@ A tool to help Travian players manage village defense troops.
 ## Deployment
 This project is configured for deployment via GitHub Pages.
 
-### Option 1: GitHub Actions (Recommended)
-This repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`).
-1.  Push this code to a GitHub repository.
-2.  Go to the repository **Settings** -> **Pages**.
-3.  Under **Build and deployment**, select **GitHub Actions** as the source.
-4.  The workflow will automatically run and deploy your site.
-
-### Option 2: Deploy from Branch
+### Deploy from Branch
 1.  Push this code to a GitHub repository.
 2.  Go to the repository **Settings** -> **Pages**.
 3.  Under **Build and deployment**, select **Deploy from a branch**.
