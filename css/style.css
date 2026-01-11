@@ -28,3 +28,63 @@ header {
 header h1 {
     margin: 0;
 }
+
+.input-section {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+select, textarea {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box; 
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: #333;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+button:hover {
+    background: #555;
+}
+
+#results-section table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: #fff;
+}
+
+#results-section th, #results-section td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+#results-section th {
+    background-color: #f2f2f2;
+    text-align: left;
+}
+
+.village-row:nth-child(even) {
+    background-color: #f9f9f9;
+}

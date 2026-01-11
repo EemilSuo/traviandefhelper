@@ -13,8 +13,27 @@
         </header>
         
         <main id="app">
-            <!-- Content will be loaded here -->
-            <p>Loading troop data...</p>
+            <div class="input-section">
+                <label for="tribe-select">Select Tribe:</label>
+                <select id="tribe-select">
+                    <option value="0">Romans</option>
+                    <option value="1">Teutons</option>
+                    <option value="2">Gauls</option>
+                    <option value="5">Egyptians</option>
+                    <option value="6">Huns</option>
+                    <option value="7">Spartans</option>
+                    <option value="8">Vikings</option>
+                </select>
+
+                <label for="source-code">Paste Source Code (Ctrl+U):</label>
+                <textarea id="source-code" rows="10" placeholder="Paste the HTML source code of the troops statistics page here..."></textarea>
+                
+                <button id="process-btn">Process Data</button>
+            </div>
+
+            <div id="results-section">
+                <!-- Results will be displayed here -->
+            </div>
         </main>
     </div>
 
