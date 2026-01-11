@@ -331,12 +331,11 @@ function updateLinkHref(linkElement, rowData) {
     linkElement.style.color = '';
 
     // Params: newdid (switch village), gid=16 (rally point), tt=2 (send troops)
-    // eventType=4 (Raid)
-    // x, y = target
+    // eventType=2 (Reinforcement)
     // targetMapId = calculated map position
     
     const targetMapId = (200 - targetCoordinates.y) * 401 + (201 + targetCoordinates.x);
-    let params = `?newdid=${rowData.villageDid}&gid=16&tt=2&eventType=4&targetMapId=${targetMapId}&x=${targetCoordinates.x}&y=${targetCoordinates.y}`;
+    let params = `?newdid=${rowData.villageDid}&gid=16&tt=2&eventType=2&targetMapId=${targetMapId}`;
     
     rowData.units.forEach((unit, idx) => {
         // unit.sendAmount
