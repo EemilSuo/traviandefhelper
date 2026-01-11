@@ -1,4 +1,6 @@
 let troopData = [];
+let currentResults = []; // Store processed results globally to re-render or recalc
+let tribeUnits = []; // Store current tribe's unit info
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Travian Def Helper initialized');
@@ -15,6 +17,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     document.getElementById('process-btn').addEventListener('click', processSourceCode);
+    
+    // Add event listeners for target coordinates to recalculate times live
+    document.getElementById('target-x').addEventListener('input', recalculateAllTimes);
+    document.getElementById('target-y').addEventListener('input', recalculateAllTimes);
+
+    // Add event listener for target URL
+    document.getElementById('target-url').addEventListener('input', (e) => {
+        const url = e.target.value;
+        const xMatch = url.match(/[?&]x=(-?\d+)/);
+        const yMatch = url.match(/[?&]y=(-?\d+)/);
+        
+        if (xMatch && yMatch) {
+            document.getElementById('target-x').value = xMatch[1];
+            document.getElementById('target-y').value = yMatch[1];
+            recalculateAllTimes();
+        }
+    });
 });
 
 function processSourceCode() {
@@ -31,99 +50,215 @@ function processSourceCode() {
         return;
     }
 
+    tribeUnits = troopData[tribeIndex];
     const parser = new DOMParser();
     const doc = parser.parseFromString(sourceCode, 'text/html');
     const troopsTable = doc.querySelector('#troops');
 
     if (!troopsTable) {
-        alert('Could not find troops table in the provided source code. Make sure you are on the correct page (Village Statistics -> Troops).');
+        alert('Could not find troops table. Ensure you are on "Village Statistics -> Troops".');
         return;
     }
 
     const results = [];
     const rows = troopsTable.querySelectorAll('tbody tr');
-    const tribeTroops = troopData[tribeIndex];
-
+    
     rows.forEach(row => {
-        // Skip the header row if it exists in tbody (sometimes happens) or empty rows/sum rows
         if (row.classList.contains('empty') || row.classList.contains('sum')) return;
 
         const villageNameCell = row.querySelector('.villageName');
         if (!villageNameCell) return;
 
+        const link = villageNameCell.querySelector('a');
         const villageName = villageNameCell.innerText.trim();
-        const units = [];
-
-        // Cells 1 to 10 are standard units. Cell 11 is Hero.
-        // The table has a class 'unit' on td? No, the th has 'unit'. The td just has values.
-        // Let's assume the columns correspond to the tribe's units in order.
         
-        const cells = row.querySelectorAll('td');
-        // cell 0 is villageName (already handled)
-        // cells 1-10 are units
-        // cell 11 is hero
+        // Extract village DID from href to find coordinates
+        let villageDid = null;
+        if (link) {
+            const href = link.getAttribute('href');
+            const match = href.match(/newdid=(\d+)/);
+            if (match) villageDid = match[1];
+        }
 
-        for (let i = 1; i <= 10; i++) {
-            if (cells[i]) {
-                const count = parseInt(cells[i].innerText.trim()) || 0;
-                if (count > 0) {
-                    units.push({
-                        ...tribeTroops[i-1], // i-1 because array is 0-indexed but columns are 1-10
-                        count: count
-                    });
+        // Find coordinates in the sidebar using DID
+        let x = 0, y = 0;
+        if (villageDid) {
+            const sidebarEntry = doc.querySelector(`.listEntry.village[data-did="${villageDid}"]`);
+            if (sidebarEntry) {
+                const coordX = sidebarEntry.querySelector('.coordinateX');
+                const coordY = sidebarEntry.querySelector('.coordinateY');
+                if (coordX && coordY) {
+                    // Clean text: replace minus sign (U+2212) with hyphen, then remove all non-digits/non-hyphen
+                    const cleanX = coordX.innerText.replace(/\u2212/g, '-').replace(/[^\d-]/g, '');
+                    const cleanY = coordY.innerText.replace(/\u2212/g, '-').replace(/[^\d-]/g, '');
+                    x = parseInt(cleanX) || 0;
+                    y = parseInt(cleanY) || 0;
                 }
             }
         }
-        
-        // Handle Hero if needed (index 10 in array? No, hero is separate usually, but let's stick to standard units for now)
 
-        if (units.length > 0) {
-            results.push({
-                villageName: villageName,
-                units: units
-            });
+        const units = [];
+        const cells = row.querySelectorAll('td');
+
+        // Cells 1-10 are regular units
+        for (let i = 1; i <= 10; i++) {
+            if (cells[i]) {
+                const count = parseInt(cells[i].innerText.replace(/[^\d]/g, '')) || 0;
+                // Store unit data even if count is 0, to align columns, but mark availability
+                units.push({
+                    ...tribeUnits[i-1],
+                    count: count,
+                    selected: count > 0 // Default select if troops exist
+                });
+            }
         }
+        
+        // Hero is usually cell 11 (index 11 in querySelectorAll result if 0-based is villageName)
+        // Check header to be sure or just assume 11th cell
+        // Hero speed depends on equipment, base is usually 7. Let's assume standard hero for now or use Tribe base speed? 
+        // For now, let's ignore Hero for speed calculation or assume a default like unit speed. 
+        // Providing a Hero column but defaulting speed to "fastest" or user input is complex.
+        // Let's stick to the 10 units for now as per "add every troop as its own column".
+        // If the user wants hero support, we can add it later.
+
+        results.push({
+            villageName,
+            villageDid,
+            x,
+            y,
+            units
+        });
     });
 
-    displayResults(results);
+    currentResults = results;
+    displayResults();
 }
 
-function displayResults(results) {
+function displayResults() {
     const resultsDiv = document.getElementById('results-section');
     resultsDiv.innerHTML = '';
 
-    if (results.length === 0) {
-        resultsDiv.innerHTML = '<p>No troops found in the provided source code.</p>';
+    if (currentResults.length === 0) {
+        resultsDiv.innerHTML = '<p>No data found.</p>';
         return;
     }
 
     const table = document.createElement('table');
     const thead = document.createElement('thead');
-    thead.innerHTML = `
-        <tr>
-            <th>Village Name</th>
-            <th>Troops</th>
-            <th>Slowest Speed</th>
-        </tr>
-    `;
+    
+    // Create Header Row
+    let headerHtml = '<tr><th>Village</th><th>Coords</th>';
+    tribeUnits.forEach(unit => {
+        // Use image or name. Name is safer for text.
+        headerHtml += `<th title="${unit.name} (Speed: ${unit.speed})">${unit.name.substring(0, 3)}</th>`;
+    });
+    headerHtml += '<th>Time</th></tr>';
+    
+    thead.innerHTML = headerHtml;
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    results.forEach(res => {
+    
+    currentResults.forEach((res, rowIdx) => {
         const row = document.createElement('tr');
         row.classList.add('village-row');
-
-        const unitStrings = res.units.map(u => `${u.count} ${u.name}`).join(', ');
-        const minSpeed = Math.min(...res.units.map(u => u.speed));
-
+        
+        // Village & Coords
         row.innerHTML = `
             <td>${res.villageName}</td>
-            <td>${unitStrings}</td>
-            <td>${minSpeed} fields/hour</td>
+            <td>(${res.x}|${res.y})</td>
         `;
+
+        // Unit Columns
+        res.units.forEach((unit, unitIdx) => {
+            const cell = document.createElement('td');
+            if (unit.count > 0) {
+                // Checkbox
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = unit.selected;
+                checkbox.dataset.row = rowIdx;
+                checkbox.dataset.unit = unitIdx;
+                checkbox.addEventListener('change', (e) => {
+                    currentResults[rowIdx].units[unitIdx].selected = e.target.checked;
+                    updateRowTime(row, currentResults[rowIdx]);
+                });
+                
+                // Label (Count)
+                const label = document.createElement('span');
+                label.innerText = ` ${unit.count}`;
+                
+                cell.appendChild(checkbox);
+                cell.appendChild(label);
+            } else {
+                cell.innerText = '-';
+                cell.classList.add('none');
+            }
+            row.appendChild(cell);
+        });
+
+        // Time Column
+        const timeCell = document.createElement('td');
+        timeCell.classList.add('time-cell');
+        timeCell.innerText = calculateTime(res);
+        row.appendChild(timeCell);
+
         tbody.appendChild(row);
     });
-    table.appendChild(tbody);
 
+    table.appendChild(tbody);
     resultsDiv.appendChild(table);
+}
+
+function updateRowTime(rowElement, rowData) {
+    const timeCell = rowElement.querySelector('.time-cell');
+    if (timeCell) {
+        timeCell.innerText = calculateTime(rowData);
+    }
+}
+
+function recalculateAllTimes() {
+    const rows = document.querySelectorAll('.village-row');
+    rows.forEach((row, index) => {
+        if (currentResults[index]) {
+            updateRowTime(row, currentResults[index]);
+        }
+    });
+}
+
+function calculateTime(villageData) {
+    const targetX = parseInt(document.getElementById('target-x').value);
+    const targetY = parseInt(document.getElementById('target-y').value);
+
+    if (isNaN(targetX) || isNaN(targetY)) {
+        return 'Enter Target';
+    }
+
+    const selectedUnits = villageData.units.filter(u => u.selected && u.count > 0);
+    
+    if (selectedUnits.length === 0) {
+        return '-';
+    }
+
+    // Find slowest speed
+    const minSpeed = Math.min(...selectedUnits.map(u => u.speed));
+    
+    // Calculate Distance
+    const dx = Math.abs(villageData.x - targetX);
+    const dy = Math.abs(villageData.y - targetY);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Calculate Time in Hours
+    const timeHours = distance / minSpeed;
+    
+    return formatTime(timeHours);
+}
+
+function formatTime(hours) {
+    const totalSeconds = Math.round(hours * 3600);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
