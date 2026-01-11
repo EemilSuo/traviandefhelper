@@ -343,7 +343,7 @@ function updateLinkHref(linkElement, rowData) {
         // idx 9 -> t10
         // idx 10 -> t11 (Hero)
         if (unit.selected && unit.sendAmount > 0) {
-            params += `&t${idx + 1}=${unit.sendAmount}`;
+            params += `&troop[t${idx + 1}]=${unit.sendAmount}`;
         }
     });
 
