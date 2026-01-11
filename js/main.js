@@ -286,6 +286,7 @@ function displayResults() {
         const sendAtCell = document.createElement('td');
         sendAtCell.classList.add('send-at-cell');
         sendAtCell.innerText = calculateSendAt(res);
+        updateSendAtColor(sendAtCell, res);
         row.appendChild(sendAtCell);
 
         // Link Column
@@ -359,6 +360,7 @@ function updateRowTime(rowElement, rowData) {
     const sendAtCell = rowElement.querySelector('.send-at-cell');
     if (sendAtCell) {
         sendAtCell.innerText = calculateSendAt(rowData);
+        updateSendAtColor(sendAtCell, rowData);
     }
     
     const linkElement = rowElement.querySelector('.send-link');
@@ -367,20 +369,40 @@ function updateRowTime(rowElement, rowData) {
     }
 }
 
-function calculateSendAt(villageData) {
-    if (!landingTime) return 'Set Landing';
-    
+function getSendTimeDate(villageData) {
+    if (!landingTime) return null;
     const travelTimeStr = calculateTime(villageData);
-    if (travelTimeStr === '-' || travelTimeStr === 'Enter URL') return '-';
+    if (travelTimeStr === '-' || travelTimeStr === 'Enter URL') return null;
 
-    // Parse H:MM:SS
     const parts = travelTimeStr.split(':');
     const hours = parseInt(parts[0]);
     const minutes = parseInt(parts[1]);
     const seconds = parseInt(parts[2]);
-    
+
     const travelMs = ((hours * 3600) + (minutes * 60) + seconds) * 1000;
-    const sendTime = new Date(landingTime.getTime() - travelMs);
+    return new Date(landingTime.getTime() - travelMs);
+}
+
+function updateSendAtColor(cell, rowData) {
+    const sendTime = getSendTimeDate(rowData);
+    cell.classList.remove('future-time', 'past-time');
+    
+    if (sendTime) {
+        const now = new Date();
+        if (sendTime > now) {
+            cell.classList.add('future-time');
+        } else {
+            cell.classList.add('past-time');
+        }
+    }
+}
+
+function calculateSendAt(villageData) {
+    const sendTime = getSendTimeDate(villageData);
+    if (!sendTime) {
+        if (!landingTime) return 'Set Landing';
+        return '-';
+    }
     
     // Format: DD.MM HH:MM:SS
     const dd = sendTime.getDate().toString().padStart(2, '0');

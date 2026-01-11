@@ -116,3 +116,13 @@ button:hover {
 .village-row:nth-child(even) {
     background-color: #f9f9f9;
 }
+
+.future-time {
+    color: green;
+    font-weight: bold;
+}
+
+.past-time {
+    color: red;
+    font-weight: bold;
+}
