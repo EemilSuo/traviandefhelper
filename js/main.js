@@ -1,7 +1,8 @@
 let troopData = [];
 let currentResults = [];
 let tribeUnits = [];
-let targetCoordinates = { x: null, y: null }; // Store target coordinates here
+let targetCoordinates = { x: null, y: null };
+let landingTime = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Travian Def Helper initialized');
@@ -38,6 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetCoordinates.y = null;
                 recalculateAllTimes();
             }
+        });
+    }
+
+    const landingTimeInput = document.getElementById('landing-time');
+    if (landingTimeInput) {
+        landingTimeInput.addEventListener('input', (e) => {
+            landingTime = e.target.value ? new Date(e.target.value) : null;
+            recalculateAllTimes();
         });
     }
 });
@@ -157,7 +166,7 @@ function displayResults() {
     tribeUnits.forEach(unit => {
         headerHtml += `<th title="${unit.name} (Speed: ${unit.speed})">${unit.name.substring(0, 3)}</th>`;
     });
-    headerHtml += '<th title="Hero (Speed: 7)">Her</th><th>Time</th></tr>';
+    headerHtml += '<th title="Hero (Speed: 7)">Her</th><th>Travel Time</th><th>Send At</th><th>Link</th></tr>';
     
     thead.innerHTML = headerHtml;
     table.appendChild(thead);
@@ -273,6 +282,24 @@ function displayResults() {
         timeCell.innerText = calculateTime(res);
         row.appendChild(timeCell);
 
+        // Sending Time Column
+        const sendAtCell = document.createElement('td');
+        sendAtCell.classList.add('send-at-cell');
+        sendAtCell.innerText = calculateSendAt(res);
+        row.appendChild(sendAtCell);
+
+        // Link Column
+        const linkCell = document.createElement('td');
+        const link = document.createElement('a');
+        link.innerText = 'Send';
+        link.target = '_blank';
+        link.classList.add('send-link');
+        // Initial Link Generation
+        updateLinkHref(link, res);
+        
+        linkCell.appendChild(link);
+        row.appendChild(linkCell);
+
         tbody.appendChild(row);
     });
 
@@ -280,11 +307,89 @@ function displayResults() {
     resultsDiv.appendChild(table);
 }
 
+function updateLinkHref(linkElement, rowData) {
+    const targetUrlVal = document.getElementById('target-url') ? document.getElementById('target-url').value : '';
+    let baseUrl = '';
+    
+    try {
+        if (targetUrlVal && targetUrlVal.startsWith('http')) {
+            const urlObj = new URL(targetUrlVal);
+            baseUrl = urlObj.origin;
+        }
+    } catch (e) {
+        console.error('Invalid URL', e);
+    }
+
+    if (!baseUrl || targetCoordinates.x === null || targetCoordinates.y === null) {
+        linkElement.href = '#';
+        linkElement.style.pointerEvents = 'none';
+        linkElement.style.color = 'gray';
+        return;
+    }
+
+    linkElement.style.pointerEvents = 'auto';
+    linkElement.style.color = '';
+
+    // Params: newdid (switch village), gid=16 (rally point), tt=2 (send troops)
+    // x, y = target
+    // t1...t10 = troop counts
+    // t11 = hero?
+    
+    let params = `?newdid=${rowData.villageDid}&gid=16&tt=2&x=${targetCoordinates.x}&y=${targetCoordinates.y}`;
+    
+    rowData.units.forEach((unit, idx) => {
+        // unit.sendAmount
+        // idx 0 -> t1
+        // idx 9 -> t10
+        // idx 10 -> t11 (Hero)
+        if (unit.selected && unit.sendAmount > 0) {
+            params += `&t${idx + 1}=${unit.sendAmount}`;
+        }
+    });
+
+    linkElement.href = baseUrl + '/build.php' + params;
+}
+
 function updateRowTime(rowElement, rowData) {
     const timeCell = rowElement.querySelector('.time-cell');
     if (timeCell) {
         timeCell.innerText = calculateTime(rowData);
     }
+
+    const sendAtCell = rowElement.querySelector('.send-at-cell');
+    if (sendAtCell) {
+        sendAtCell.innerText = calculateSendAt(rowData);
+    }
+    
+    const linkElement = rowElement.querySelector('.send-link');
+    if (linkElement) {
+        updateLinkHref(linkElement, rowData);
+    }
+}
+
+function calculateSendAt(villageData) {
+    if (!landingTime) return 'Set Landing';
+    
+    const travelTimeStr = calculateTime(villageData);
+    if (travelTimeStr === '-' || travelTimeStr === 'Enter URL') return '-';
+
+    // Parse H:MM:SS
+    const parts = travelTimeStr.split(':');
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    const seconds = parseInt(parts[2]);
+    
+    const travelMs = ((hours * 3600) + (minutes * 60) + seconds) * 1000;
+    const sendTime = new Date(landingTime.getTime() - travelMs);
+    
+    // Format: DD.MM HH:MM:SS
+    const dd = sendTime.getDate().toString().padStart(2, '0');
+    const mm = (sendTime.getMonth() + 1).toString().padStart(2, '0');
+    const h = sendTime.getHours().toString().padStart(2, '0');
+    const m = sendTime.getMinutes().toString().padStart(2, '0');
+    const s = sendTime.getSeconds().toString().padStart(2, '0');
+    
+    return `${dd}.${mm}. ${h}:${m}:${s}`;
 }
 
 function recalculateAllTimes() {
